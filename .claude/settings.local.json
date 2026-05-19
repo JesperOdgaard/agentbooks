@@ -6,7 +6,10 @@
       "Bash(npm list:*)",
       "Bash(ls:*)",
       "Bash(npx next:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(gh repo:*)",
+      "Bash(npx gh:*)",
+      "Bash(where gh:*)"
     ]
   }
 }
