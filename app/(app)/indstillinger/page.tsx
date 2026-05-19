@@ -6,6 +6,7 @@ import { LeverandoerSyncSection } from './leverandoer-sync-section'
 import { ValutaSection } from './valuta-section'
 import type { OrgCurrency } from './valuta-section'
 import { OrgSettingsForm } from './org-settings-form'
+import { AbonnementTab } from './abonnement-tab'
 
 const planLabel: Record<string, string> = {
   starter:      'Starter',
@@ -122,33 +123,7 @@ export default async function IndstillingerPage({
 
       {/* ── ABONNEMENT ── */}
       {activeTab === 'abonnement' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Abonnement</h2>
-          <div className="flex items-center gap-3">
-            <span className={`text-sm font-semibold px-3 py-1.5 rounded-full ${planColor[plan] ?? 'bg-gray-100 text-gray-600'}`}>
-              {planLabel[plan] ?? plan}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-4 pt-2">
-            {[
-              { plan: 'starter',      price: '0 kr/md',    invoices: 'Op til 50/md', users: '1 bruger',   ai: false, erp: false },
-              { plan: 'professional', price: '299 kr/md',  invoices: 'Ubegrænset',   users: 'Op til 5',   ai: true,  erp: true  },
-              { plan: 'enterprise',   price: 'Kontakt os', invoices: 'Ubegrænset',   users: 'Ubegrænset', ai: true,  erp: true  },
-            ].map((p) => (
-              <div key={p.plan} className={`rounded-xl border p-4 ${plan === p.plan ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200'}`}>
-                <p className="text-sm font-bold text-gray-900 capitalize">{planLabel[p.plan]}</p>
-                <p className="text-lg font-bold text-gray-800 mt-1">{p.price}</p>
-                <ul className="text-xs text-gray-500 mt-3 space-y-1">
-                  <li>{p.invoices}</li>
-                  <li>{p.users}</li>
-                  <li>{p.ai ? 'AI-scanning' : 'Ingen AI'}</li>
-                  <li>{p.erp ? 'ERP-integration' : 'Ingen ERP'}</li>
-                </ul>
-                {plan === p.plan && <p className="text-xs font-semibold text-emerald-600 mt-3">Aktiv plan</p>}
-              </div>
-            ))}
-          </div>
-        </div>
+        <AbonnementTab plan={plan} isAdmin={isAdmin} />
       )}
 
       {/* ── ADGANGSNØGLER (Integrationer) ── */}
@@ -225,6 +200,7 @@ async function RegnskabTab({
     </div>
   )
 }
+
 
 async function MomssatserTab({
   orgId, supabase,
