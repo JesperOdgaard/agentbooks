@@ -5,6 +5,7 @@ import { KontoplanSection } from './kontoplan-section'
 import { LeverandoerSyncSection } from './leverandoer-sync-section'
 import { ValutaSection } from './valuta-section'
 import type { OrgCurrency } from './valuta-section'
+import { OrgSettingsForm } from './org-settings-form'
 
 const planLabel: Record<string, string> = {
   starter:      'Starter',
@@ -65,37 +66,28 @@ export default async function IndstillingerPage({
 
       {/* ── VIRKSOMHED ── */}
       {activeTab === 'virksomhed' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">Virksomhedsoplysninger</h2>
-            {!org ? (
-              <p className="text-sm text-gray-500">Ingen data fundet.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: 'Navn',         value: (org as Record<string,unknown>).name as string },
-                  { label: 'CVR',          value: (org as Record<string,unknown>).cvr as string | null },
-                  { label: 'E-mail',       value: (org as Record<string,unknown>).email as string | null },
-                  { label: 'Telefon',      value: (org as Record<string,unknown>).phone as string | null },
-                  { label: 'Adresse',      value: (org as Record<string,unknown>).address as string | null },
-                  { label: 'By',           value: [(org as Record<string,unknown>).postal_code, (org as Record<string,unknown>).city].filter(Boolean).join(' ') || null },
-                  { label: 'Land',         value: (org as Record<string,unknown>).country as string | null },
-                  { label: 'Basisvaluta',  value: (org as Record<string,unknown>).base_currency as string | null },
-                ].filter((r) => r.value).map((row) => (
-                  <div key={row.label}>
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">{row.label}</p>
-                    <p className="text-sm text-gray-900">{row.value}</p>
-                  </div>
-                ))}
-                <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Abonnement</p>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${planColor[plan] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {planLabel[plan] ?? plan}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          {!org ? (
+            <p className="text-sm text-gray-500">Ingen organisation fundet.</p>
+          ) : (
+            <OrgSettingsForm
+              org={{
+                id: orgId ?? '',
+                name: (org as Record<string,unknown>).name as string,
+                cvr: (org as Record<string,unknown>).cvr as string | null,
+                email: (org as Record<string,unknown>).email as string | null,
+                phone: (org as Record<string,unknown>).phone as string | null,
+                address: (org as Record<string,unknown>).address as string | null,
+                postal_code: (org as Record<string,unknown>).postal_code as string | null,
+                city: (org as Record<string,unknown>).city as string | null,
+                country: (org as Record<string,unknown>).country as string | null,
+                base_currency: (org as Record<string,unknown>).base_currency as string | null,
+                fiscal_year_start: (org as Record<string,unknown>).fiscal_year_start as string | null,
+                logo_url: (org as Record<string,unknown>).logo_url as string | null,
+              }}
+              isAdmin={isAdmin}
+            />
+          )}
         </div>
       )}
 
