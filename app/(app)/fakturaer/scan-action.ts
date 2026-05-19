@@ -178,6 +178,8 @@ export async function scanInvoiceWithAI(
 
   const prompt = `Du er en ekspert i faktura-OCR og dansk bogholderi. Ekstraher følgende felter fra fakturaen og returner KUN gyldig JSON – ingen forklaring, ingen markdown.
 
+VIGTIG KONTEKST: Dette er en INDKØBSFAKTURA (leverandørfaktura) — en faktura vi MODTAGER og skal BETALE til en leverandør. Du skal vælge en UDGIFTSKONTO (typisk drift/omkostning), IKKE en omsætnings- eller salgskonto. Konti af typen "revenue" eller med betegnelser som "salg", "omsætning", "indtægt" må IKKE vælges til leverandørfakturaer.
+
 Tilgængelig kontoplan (brug KUN disse kontonumre):
 ${accountList}
 
@@ -212,6 +214,7 @@ Regler:
 - Hvis feltet ikke kan aflæses, brug null
 - line_items kan være tom array hvis ingen linjer er synlige
 - Vælg KUN konto og momskode fra listerne ovenfor — brug det præcise kontonummer
+- Vælg ALTID en udgiftskonto (type: expense/drifts/omkostning) for leverandørfakturaer — ALDRIG salgs- eller omsætningskonti
 - Sæt kontering_confidence til 90-100 hvis kontoen er baseret på historik, ellers 0-80 baseret på sikkerhed
 - Hvis leverandøren er i historikken, sæt kontering_confidence til mindst 85`
 
