@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Alvio brand colors */
+  --alvio-navy:       #1B2966;
+  --alvio-navy-dark:  #111C4E;
+  --alvio-amber:      #F5A623;
 }
 
 @theme inline {
@@ -10,6 +15,18 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Remap "emerald" → Alvio navy throughout all existing Tailwind classes */
+  --color-emerald-50:  #EEF1FB;
+  --color-emerald-100: #D9DFEF;
+  --color-emerald-200: #B3BFDF;
+  --color-emerald-300: #7A91C8;
+  --color-emerald-400: #3D5BAF;
+  --color-emerald-500: #1B2966;
+  --color-emerald-600: #162050;
+  --color-emerald-700: #101840;
+  --color-emerald-800: #0B1030;
+  --color-emerald-900: #060920;
 }
 
 @media (prefers-color-scheme: dark) {

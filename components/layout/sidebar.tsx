@@ -54,15 +54,16 @@ export function Sidebar({ orgName, userFullName, userEmail }: SidebarProps) {
   }
 
   return (
-    <aside className="w-64 min-h-screen flex flex-col" style={{ backgroundColor: '#1a1f2e' }}>
+    <aside className="w-64 min-h-screen flex flex-col" style={{ backgroundColor: '#0F1629' }}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-        <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">W</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden relative" style={{ backgroundColor: '#1B2966' }}>
+          <span className="text-white font-bold text-sm leading-none">A</span>
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#F5A623' }} />
         </div>
         <div className="overflow-hidden">
           <p className="text-white font-semibold text-sm truncate">{orgName}</p>
-          <p className="text-white/40 text-xs">AgentBooks</p>
+          <p className="text-white/40 text-xs">Alvio.AI</p>
         </div>
       </div>
 
@@ -82,46 +83,58 @@ export function Sidebar({ orgName, userFullName, userEmail }: SidebarProps) {
       <GlobalSearch />
 
       {/* Hoved-navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              isActive(href)
-                ? 'bg-emerald-500 text-white'
-                : 'text-white/60 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Icon size={18} />
-            {label}
-          </Link>
-        ))}
+      <nav className="flex-1 px-3 py-2 space-y-0.5">
+        {navItems.map(({ href, label, icon: Icon }) => {
+          const active = isActive(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                active ? 'text-white' : 'text-white/55 hover:text-white hover:bg-white/8'
+              }`}
+              style={active ? { backgroundColor: 'rgba(255,255,255,0.10)' } : undefined}
+            >
+              {active
+                ? <span className="w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#F5A623' }} />
+                : <span className="w-1 flex-shrink-0" />
+              }
+              <Icon size={17} />
+              {label}
+            </Link>
+          )
+        })}
       </nav>
 
       {/* Bund-navigation */}
-      <div className="px-3 pb-2 space-y-1 border-t border-white/10 pt-2">
-        {bottomNavItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              isActive(href)
-                ? 'bg-emerald-500 text-white'
-                : 'text-white/60 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Icon size={18} />
-            {label}
-          </Link>
-        ))}
+      <div className="px-3 pb-2 space-y-0.5 border-t border-white/10 pt-2">
+        {bottomNavItems.map(({ href, label, icon: Icon }) => {
+          const active = isActive(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                active ? 'text-white' : 'text-white/55 hover:text-white hover:bg-white/8'
+              }`}
+              style={active ? { backgroundColor: 'rgba(255,255,255,0.10)' } : undefined}
+            >
+              {active
+                ? <span className="w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#F5A623' }} />
+                : <span className="w-1 flex-shrink-0" />
+              }
+              <Icon size={17} />
+              {label}
+            </Link>
+          )
+        })}
       </div>
 
       {/* Bruger-sektion */}
       <div className="px-3 pb-4 border-t border-white/10 pt-3">
         <div className="flex items-center gap-3 px-3 py-2 mb-1">
-          <div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-emerald-400 text-xs font-semibold">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(27,41,102,0.3)' }}>
+            <span className="text-xs font-semibold" style={{ color: '#7A91C8' }}>
               {(userFullName ?? userEmail).charAt(0).toUpperCase()}
             </span>
           </div>

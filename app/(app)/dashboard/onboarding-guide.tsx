@@ -51,7 +51,7 @@ export function OnboardingGuide({ orgName }: OnboardingGuideProps) {
             <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Kom i gang</span>
           </div>
           <h2 className="text-lg font-bold text-gray-900">
-            Velkommen til AgentBooks, {orgName}! 👋
+            Velkommen til Alvio.AI, {orgName}! 👋
           </h2>
           <p className="text-sm text-gray-500 mt-0.5">
             Følg disse tre trin for at sætte dit fakturaflow op.

@@ -8,7 +8,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'AgentBooks — Workflow Invoice Management',
+  title: 'Alvio.AI — Fakturaflow og udgiftsstyring',
   description: 'Fakturaflow og udgiftsstyring til danske virksomheder',
 }
 

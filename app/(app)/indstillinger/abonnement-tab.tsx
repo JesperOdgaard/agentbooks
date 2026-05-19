@@ -12,8 +12,8 @@ const features: { label: string; starter: boolean | string; professional: boolea
   { label: 'Brugere',              starter: '1 bruger',   professional: 'Op til 5',    enterprise: 'Ubegrænset'  },
   { label: 'AI-scanning',          starter: false,        professional: true,           enterprise: true          },
   { label: 'ERP-integration',      starter: false,        professional: true,           enterprise: true          },
-  { label: 'Leverandoerstyring',   starter: true,         professional: true,           enterprise: true          },
-  { label: 'Indkoebsordrer',       starter: true,         professional: true,           enterprise: true          },
+  { label: 'Leverandørstyring',   starter: true,         professional: true,           enterprise: true          },
+  { label: 'Indkøbsordrer',       starter: true,         professional: true,           enterprise: true          },
   { label: 'Rejseafregning',       starter: true,         professional: true,           enterprise: true          },
   { label: 'Godkendelsesregler',   starter: false,        professional: true,           enterprise: true          },
   { label: 'Revisionslog',         starter: false,        professional: true,           enterprise: true          },
@@ -38,14 +38,14 @@ const plans = [
     period: '/md',
     desc: 'Til voksende virksomheder med team',
     ringColor: 'border-emerald-400',
-    badge: 'Mest populaer' as string | null,
+    badge: 'Mest populær' as string | null,
   },
   {
     key: 'enterprise',
     label: 'Enterprise',
     price: 'Kontakt os',
     period: '',
-    desc: 'Til stoerre organisationer med saerlige behov',
+    desc: 'Til større organisationer med særlige behov',
     ringColor: 'border-purple-300',
     badge: null as string | null,
   },
@@ -189,8 +189,8 @@ export function AbonnementTab({ plan, isAdmin }: Props) {
       {/* ── Kontakt-boks ── */}
       <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold text-gray-800">Sporgsmal om dit abonnement?</p>
-          <p className="text-xs text-gray-500 mt-0.5">Vores team hjaelper dig med opgradering, fakturering og saerlige aftaler.</p>
+          <p className="text-sm font-semibold text-gray-800">Spørgsmål om dit abonnement?</p>
+          <p className="text-xs text-gray-500 mt-0.5">Vores team hjælper dig med opgradering, fakturering og særlige aftaler.</p>
         </div>
         <a
           href="mailto:salg@agentbooks.dk"
