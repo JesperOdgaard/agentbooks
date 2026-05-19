@@ -117,7 +117,7 @@ export function POActions({ poId, status }: POActionsProps) {
 
 export function POPdfButton({ poId }: { poId: string }) {
   function handlePrint() {
-    window.open(`/indkoebsordrer/${poId}/print`, '_blank')
+    window.open(`/po-print/${poId}`, '_blank')
   }
   return (
     <button
