@@ -82,10 +82,12 @@ export async function scanInvoiceWithAI(
   const isPdf = ext === 'pdf'
   const mediaType = isPdf ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`
 
-  // Hent kontoplan og momskoder til AI-forslag
+  // Hent org-specifik kontoplan
   const { data: accounts } = await supabase
     .from('accounts')
     .select('code, name, type')
+    .eq('organization_id', member.organization_id)
+    .eq('is_active', true)
     .order('code')
 
   const { data: vatCodes } = await supabase
@@ -93,13 +95,81 @@ export async function scanInvoiceWithAI(
     .select('code, name, rate')
     .order('code')
 
-  const accountList = accounts
+  const accountList = accounts && accounts.length > 0
     ? accounts.map((a) => `${a.code} – ${a.name} (${a.type})`).join('\n')
     : 'Ingen kontoplan tilgængelig'
 
   const vatList = vatCodes
     ? vatCodes.map((v) => `${v.code} – ${v.name} (${v.rate}%)`).join('\n')
     : 'Ingen momskoder tilgængelig'
+
+  // Hent leverandørhistorik — mest brugte konto per leverandør
+  const { data: supplierHistory } = await supabase
+    .from('invoices')
+    .select(`
+      supplier_id,
+      account_id,
+      suppliers(name, cvr),
+      accounts(code, name)
+    `)
+    .eq('organization_id', member.organization_id)
+    .not('supplier_id', 'is', null)
+    .not('account_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  // Aggregér: per leverandør, find mest brugte konto
+  type SupplierPattern = {
+    supplierName: string
+    supplierCvr: string | null
+    accountCode: string
+    accountName: string
+    count: number
+  }
+
+  const patternMap = new Map<string, Map<string, SupplierPattern>>()
+
+  if (supplierHistory) {
+    for (const inv of supplierHistory) {
+      const supplier = inv.suppliers as { name: string; cvr: string | null } | null
+      const account = inv.accounts as { code: string; name: string } | null
+      if (!supplier || !account || !inv.supplier_id) continue
+
+      const key = inv.supplier_id as string
+      if (!patternMap.has(key)) patternMap.set(key, new Map())
+
+      const accountKey = account.code
+      const existing = patternMap.get(key)!.get(accountKey)
+      if (existing) {
+        existing.count++
+      } else {
+        patternMap.get(key)!.set(accountKey, {
+          supplierName: supplier.name,
+          supplierCvr: supplier.cvr,
+          accountCode: account.code,
+          accountName: account.name,
+          count: 1,
+        })
+      }
+    }
+  }
+
+  // Byg historik-tekst til prompten
+  const historyLines: string[] = []
+  for (const [, accountMap] of patternMap) {
+    const sorted = [...accountMap.values()].sort((a, b) => b.count - a.count)
+    const top = sorted[0]
+    if (top) {
+      const cvrPart = top.supplierCvr ? ` (CVR: ${top.supplierCvr})` : ''
+      historyLines.push(
+        `- ${top.supplierName}${cvrPart}: typisk konto ${top.accountCode} – ${top.accountName} (brugt ${top.count} gang${top.count !== 1 ? 'e' : ''})`
+      )
+    }
+  }
+
+  const historyContext = historyLines.length > 0
+    ? `\nLeverandørhistorik (tidligere kontovalg i denne virksomhed):\n${historyLines.join('\n')}\n\nHvis leverandøren på fakturaen matcher en i historikken, FORETRUK den historiske konto fremfor et nyt gæt.`
+    : ''
 
   // Byg Claude API request
   const contentBlock = isPdf
@@ -108,11 +178,12 @@ export async function scanInvoiceWithAI(
 
   const prompt = `Du er en ekspert i faktura-OCR og dansk bogholderi. Ekstraher følgende felter fra fakturaen og returner KUN gyldig JSON – ingen forklaring, ingen markdown.
 
-Tilgængelig kontoplan:
+Tilgængelig kontoplan (brug KUN disse kontonumre):
 ${accountList}
 
 Tilgængelige momskoder:
 ${vatList}
+${historyContext}
 
 JSON-skema:
 {
@@ -131,7 +202,7 @@ JSON-skema:
   "suggested_account_code": "kontonummer fra kontoplanen (f.eks. '6030') eller null",
   "suggested_vat_code": "momskode (f.eks. 'DK25') eller null",
   "kontering_confidence": number fra 0 til 100 (hvor sikker er du på konteringen),
-  "kontering_reasoning": "kort forklaring på dansk (maks 100 tegn) af hvorfor du valgte denne konto"
+  "kontering_reasoning": "kort forklaring på dansk (maks 120 tegn) af hvorfor du valgte denne konto — nævn hvis den er baseret på historik"
 }
 
 Regler:
@@ -141,7 +212,8 @@ Regler:
 - Hvis feltet ikke kan aflæses, brug null
 - line_items kan være tom array hvis ingen linjer er synlige
 - Vælg KUN konto og momskode fra listerne ovenfor — brug det præcise kontonummer
-- Sæt kontering_confidence til 0 hvis du er usikker, 100 hvis du er helt sikker`
+- Sæt kontering_confidence til 90-100 hvis kontoen er baseret på historik, ellers 0-80 baseret på sikkerhed
+- Hvis leverandøren er i historikken, sæt kontering_confidence til mindst 85`
 
   const apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -176,7 +248,6 @@ Regler:
 
   let extracted: ExtractedInvoice
   try {
-    // Fjern evt. markdown-blokke
     const jsonStr = rawText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
     extracted = JSON.parse(jsonStr) as ExtractedInvoice
   } catch {
@@ -191,7 +262,6 @@ Regler:
       .select('id, name, cvr')
 
     if (suppliers && suppliers.length > 0) {
-      // Prioritér CVR-match
       const cvrMatch = extracted.supplier_cvr
         ? suppliers.find((s) => s.cvr === extracted.supplier_cvr)
         : null
@@ -224,10 +294,9 @@ Regler:
     }
   }
 
-  // Hjælpefunktioner til at sikre gyldige tal inden DB-indsættelse
+  // Hjælpefunktioner
   function safeAmount(val: number | null | undefined): number | null {
     if (val == null || !isFinite(val) || isNaN(val)) return null
-    // numeric(15,2) max er 9_999_999_999_999.99
     if (Math.abs(val) > 9_999_999_999_999.99) return null
     return Math.round(val * 100) / 100
   }
@@ -240,7 +309,7 @@ Regler:
   function safeQuantity(val: number | null | undefined): number {
     if (val == null || !isFinite(val) || isNaN(val) || val <= 0) return 1
     if (val > 9_999_999) return 1
-    return Math.round(val * 1000) / 1000   // numeric(10,3)
+    return Math.round(val * 1000) / 1000
   }
 
   // Find account_id og vat_code_id ud fra foreslåede koder
@@ -252,6 +321,7 @@ Regler:
       .from('accounts')
       .select('id')
       .eq('code', extracted.suggested_account_code)
+      .eq('organization_id', member.organization_id)
       .maybeSingle()
     suggestedAccountId = matchedAccount?.id ?? null
   }
@@ -265,7 +335,7 @@ Regler:
     suggestedVatCodeId = matchedVat?.id ?? null
   }
 
-  // Opdatér faktura med ekstraherede felter — kontering sættes direkte
+  // Opdatér faktura med ekstraherede felter
   const { error: updateError } = await supabase
     .from('invoices')
     .update({
@@ -277,7 +347,6 @@ Regler:
       vat_amount: safeAmount(extracted.vat_amount),
       amount_incl_vat: safeAmount(extracted.amount_incl_vat),
       currency: extracted.currency ?? 'DKK',
-      // Kontering forudfyldes automatisk af AI
       account_id: suggestedAccountId,
       vat_code_id: suggestedVatCodeId,
       ai_scanned: true,
@@ -292,7 +361,7 @@ Regler:
 
   if (updateError) return { error: `Kunne ikke gemme AI-data: ${updateError.message}` }
 
-  // Indsæt linjelinier hvis tilgængelige
+  // Indsæt linjelinier
   if (extracted.line_items && extracted.line_items.length > 0) {
     await supabase.from('invoice_line_items').insert(
       extracted.line_items.map((li) => ({
