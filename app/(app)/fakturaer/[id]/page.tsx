@@ -375,4 +375,31 @@ export default async function FakturaDetailPage({
                     label: 'Godkendt',
                     sub: invoice.approved_at ? new Date(invoice.approved_at).toLocaleDateString('da-DK') : null,
                   },
-         
+                  {
+                    show: invoice.status === 'rejected',
+                    color: 'bg-red-400',
+                    label: 'Afvist',
+                    sub: null,
+                  },
+                  {
+                    show: invoice.status === 'paid',
+                    color: 'bg-gray-500',
+                    label: 'Betalt',
+                    sub: null,
+                  },
+                ].filter((e) => e.show).map((e, i) => (
+                  <li key={i} className="pl-4">
+                    <span className={`absolute -left-[3px] mt-1.5 w-1.5 h-1.5 rounded-full ${e.color}`} />
+                    <p className="text-xs font-medium text-gray-700">{e.label}</p>
+                    {e.sub && <p className="text-xs text-gray-400">{e.sub}</p>}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}
