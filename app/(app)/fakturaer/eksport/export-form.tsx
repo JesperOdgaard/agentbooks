@@ -254,8 +254,3 @@ export function ExportForm({ invoices }: ExportFormProps) {
     </div>
   )
 }
-      </div>
-    </div>
-  )
-}
-
