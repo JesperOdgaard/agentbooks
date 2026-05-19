@@ -9,7 +9,12 @@
       "Bash(npx tsc:*)",
       "Bash(gh repo:*)",
       "Bash(npx gh:*)",
-      "Bash(where gh:*)"
+      "Bash(where gh:*)",
+      "Bash(cp \"C:/Users/jeod/OneDrive - Alvio/Dokumenter/Claude/Projects/AI faktura flow/agentbooks/lib/crypto.ts\" C:/Projects/agentbooks/lib/crypto.ts)",
+      "Bash(cp \"C:/Users/jeod/OneDrive - Alvio/Dokumenter/Claude/Projects/AI faktura flow/agentbooks/app/\\(app\\)/indstillinger/actions.ts\" \"C:/Projects/agentbooks/app/\\(app\\)/indstillinger/actions.ts\")",
+      "Bash(cp \"C:/Users/jeod/OneDrive - Alvio/Dokumenter/Claude/Projects/AI faktura flow/agentbooks/app/\\(app\\)/indstillinger/settings-tabs.tsx\" \"C:/Projects/agentbooks/app/\\(app\\)/indstillinger/settings-tabs.tsx\")",
+      "Bash(cp \"C:/Users/jeod/OneDrive - Alvio/Dokumenter/Claude/Projects/AI faktura flow/agentbooks/app/\\(app\\)/indstillinger/erp-integrations.tsx\" \"C:/Projects/agentbooks/app/\\(app\\)/indstillinger/erp-integrations.tsx\")",
+      "Bash(cp \"C:/Users/jeod/OneDrive - Alvio/Dokumenter/Claude/Projects/AI faktura flow/agentbooks/app/\\(app\\)/indstillinger/kontoplan-section.tsx\" \"C:/Projects/agentbooks/app/\\(app\\)/indstillinger/kontoplan-section.tsx\")"
     ]
   }
 }

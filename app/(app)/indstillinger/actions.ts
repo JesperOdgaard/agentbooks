@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { encryptKey, decryptKey } from '@/lib/crypto'
 
+// ── Organisation ───────────────────────────────────────────────────────────────
+
 const orgSchema = z.object({
   name: z.string().min(1, 'Virksomhedsnavn er påkrævet'),
   cvr: z.string().optional(),
@@ -25,7 +27,6 @@ export async function updateOrganization(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Ikke logget ind' }
 
-  // Hent org via organization_members
   const { data: member } = await supabase
     .from('organization_members')
     .select('organization_id, role')
@@ -49,9 +50,7 @@ export async function updateOrganization(
   }
 
   const parsed = orgSchema.safeParse(raw)
-  if (!parsed.success) {
-    return { error: parsed.error.errors[0].message }
-  }
+  if (!parsed.success) return { error: parsed.error.errors[0].message }
 
   const { data } = parsed
 
@@ -220,7 +219,6 @@ export async function testIntegration(
       if (!res.ok) return { error: `Billy returnerede fejl ${res.status}` }
       const json = await res.json() as { user?: { name?: string } }
       const name = json?.user?.name ?? 'ukendt'
-      // Update last_sync_at
       await supabase
         .from('integrations')
         .update({ last_sync_at: new Date().toISOString() })
@@ -255,5 +253,134 @@ export async function testIntegration(
     return { error: 'Ukendt integrationstype' }
   } catch {
     return { error: 'Netværksfejl — kunne ikke nå API' }
+  }
+}
+
+// ── Kontoplan sync fra e-conomic ───────────────────────────────────────────────
+
+type EconomicAccount = {
+  accountNumber: number
+  name: string
+  accountType: string
+}
+
+type EconomicAccountsResponse = {
+  collection: EconomicAccount[]
+  pagination?: { nextPage?: string }
+}
+
+function mapAccountType(economicType: string): string {
+  switch (economicType) {
+    case 'profitAndLoss': return 'drifts'
+    case 'balance': return 'balance'
+    case 'totalFrom':
+    case 'totalTo': return 'total'
+    case 'heading':
+    case 'headingStart':
+    case 'headingEnd': return 'heading'
+    case 'sumInterval':
+    case 'sumIntervalsOnly': return 'sum'
+    default: return economicType
+  }
+}
+
+async function fetchAllEconomicAccounts(
+  appSecret: string,
+  agreementGrant: string
+): Promise<EconomicAccount[]> {
+  const accounts: EconomicAccount[] = []
+  let url: string | undefined = 'https://restapi.e-conomic.com/accounts?pageSize=1000'
+
+  while (url) {
+    const res = await fetch(url, {
+      headers: {
+        'X-AppSecretToken': appSecret,
+        'X-AgreementGrantToken': agreementGrant,
+        'Content-Type': 'application/json',
+      },
+    })
+    if (!res.ok) throw new Error(`e-conomic returnerede fejl ${res.status}`)
+    const json = await res.json() as EconomicAccountsResponse
+    accounts.push(...json.collection)
+    url = json.pagination?.nextPage
+  }
+
+  return accounts
+}
+
+export async function syncKontoplanFromEconomic(): Promise<{
+  success?: boolean
+  count?: number
+  error?: string
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Ikke logget ind' }
+
+  const { data: member } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!member) return { error: 'Ingen organisation fundet' }
+  if (member.role !== 'admin') return { error: 'Kun administratorer kan synkronisere kontoplan' }
+
+  const { data: integration } = await supabase
+    .from('integrations')
+    .select('api_key, api_key_2, is_active')
+    .eq('organization_id', member.organization_id)
+    .eq('type', 'economic')
+    .maybeSingle()
+
+  if (!integration?.is_active || !integration.api_key) {
+    return { error: 'e-conomic integration er ikke tilsluttet' }
+  }
+
+  try {
+    const appSecret = decryptKey(integration.api_key)
+    const agreementGrant = integration.api_key_2 ? decryptKey(integration.api_key_2) : ''
+    if (!agreementGrant) return { error: 'Agreement Grant Token mangler' }
+
+    const economicAccounts = await fetchAllEconomicAccounts(appSecret, agreementGrant)
+
+    // Upsert into accounts table (match on code + organization_id)
+    const rows = economicAccounts.map((a) => ({
+      organization_id: member.organization_id,
+      code: String(a.accountNumber),
+      name: a.name,
+      type: mapAccountType(a.accountType),
+      is_active: true,
+    }))
+
+    // Delete existing org accounts first, then insert fresh
+    await supabase
+      .from('accounts')
+      .delete()
+      .eq('organization_id', member.organization_id)
+
+    const { error } = await supabase.from('accounts').insert(rows)
+    if (error) return { error: 'Fejl ved gemning af kontoplan: ' + error.message }
+
+    await supabase.from('audit_log').insert({
+      organization_id: member.organization_id,
+      user_id: user.id,
+      action: 'sync_kontoplan',
+      resource_type: 'accounts',
+      resource_id: member.organization_id,
+      new_data: { source: 'economic', count: rows.length },
+    })
+
+    // Update last_sync_at on integration
+    await supabase
+      .from('integrations')
+      .update({ last_sync_at: new Date().toISOString() })
+      .eq('organization_id', member.organization_id)
+      .eq('type', 'economic')
+
+    revalidatePath('/indstillinger')
+    return { success: true, count: rows.length }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Ukendt fejl' }
   }
 }
