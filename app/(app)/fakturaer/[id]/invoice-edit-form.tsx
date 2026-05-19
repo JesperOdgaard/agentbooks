@@ -226,10 +226,4 @@ export function InvoiceEditForm({
           <Check size={12} /> {loading ? 'Gemmer...' : 'Gem'}
         </button>
         <button type="button" onClick={() => { setEditing(false); setError(null) }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs font-medium rounded-lg transition-colors">
-          <X size={12} /> Annuller
-        </button>
-      </div>
-    </form>
-  )
-}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border bor

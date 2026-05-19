@@ -469,3 +469,75 @@ export async function syncLeverandoererFromEconomic(): Promise<{
     return { error: e instanceof Error ? e.message : 'Ukendt fejl' }
   }
 }
+
+// ── Valutakurser ───────────────────────────────────────────────────────────────
+
+export async function upsertCurrency(
+  currencyCode: string,
+  rateToDkk: number,
+): Promise<{ success?: boolean; id?: string; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Ikke logget ind' }
+
+  const { data: member } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!member) return { error: 'Ingen organisation fundet' }
+  if (member.role !== 'admin') return { error: 'Kun administratorer kan ændre valutakurser' }
+
+  const code = currencyCode.trim().toUpperCase()
+  if (code.length !== 3) return { error: 'Valutakode skal være 3 bogstaver' }
+  if (isNaN(rateToDkk) || rateToDkk <= 0) return { error: 'Ugyldig kurs' }
+
+  const { data, error } = await supabase
+    .from('organization_currencies')
+    .upsert(
+      {
+        organization_id: member.organization_id,
+        currency_code: code,
+        rate_to_dkk: rateToDkk,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'organization_id,currency_code' },
+    )
+    .select('id')
+    .single()
+
+  if (error) return { error: 'Kunne ikke gemme valutakurs: ' + error.message }
+
+  revalidatePath('/indstillinger')
+  return { success: true, id: data?.id }
+}
+
+export async function deleteCurrency(
+  currencyCode: string,
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Ikke logget ind' }
+
+  const { data: member } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!member) return { error: 'Ingen organisation fundet' }
+  if (member.role !== 'admin') return { error: 'Kun administratorer kan fjerne valutakurser' }
+
+  const { error } = await supabase
+    .from('organization_currencies')
+    .delete()
+    .eq('organization_id', member.organization_id)
+    .eq('currency_code', currencyCode.toUpperCase())
+
+  if (error) return { error: 'Kunne ikke fjerne valuta: ' + error.message }
+
+  revalidatePath('/indstillinger')
+  return { success: true }
+}
