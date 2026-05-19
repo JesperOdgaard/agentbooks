@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { decryptKey } from '@/lib/crypto'
+import { bookSupplierInvoice, fetchFirstPaymentTerm } from '@/lib/economic'
 
 const createInvoiceSchema = z.object({
   supplier_id: z.string().uuid().optional().or(z.literal('')),
@@ -132,6 +134,7 @@ export async function approveInvoice(invoiceId: string) {
   if (!user) redirect('/login')
 
   const orgId = await getOrgId(supabase, user.id)
+  if (!orgId) return { error: 'Ingen organisation fundet' }
 
   const { error } = await supabase
     .from('invoices')
@@ -152,9 +155,111 @@ export async function approveInvoice(invoiceId: string) {
     resource_id: invoiceId,
   })
 
+  // Forsøg at bogføre i e-conomic hvis integration er aktiv
+  try {
+    await bookApprovedInvoiceInEconomic(supabase, orgId, invoiceId)
+  } catch {
+    // Bogføring fejlede — log men bloker ikke godkendelse
+  }
+
   revalidatePath(`/fakturaer/${invoiceId}`)
   revalidatePath('/fakturaer')
   return { success: true }
+}
+
+async function bookApprovedInvoiceInEconomic(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  invoiceId: string,
+): Promise<void> {
+  // Hent e-conomic integration
+  const { data: integration } = await supabase
+    .from('integrations')
+    .select('api_key, api_key_2, is_active')
+    .eq('organization_id', orgId)
+    .eq('type', 'economic')
+    .maybeSingle()
+
+  if (!integration?.is_active || !integration.api_key || !integration.api_key_2) return
+
+  const appSecret = decryptKey(integration.api_key)
+  const agreementGrant = decryptKey(integration.api_key_2)
+
+  // Hent fakturadata inkl. leverandør og finanskonto
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select(`
+      id,
+      invoice_number,
+      invoice_date,
+      due_date,
+      amount_excl_vat,
+      vat_amount,
+      amount_incl_vat,
+      currency,
+      economic_booked_number,
+      account_id,
+      supplier_id,
+      accounts(code, name),
+      suppliers(name, economic_id)
+    `)
+    .eq('id', invoiceId)
+    .single()
+
+  if (!invoice) return
+
+  // Allerede bogført
+  if (invoice.economic_booked_number) return
+
+  const supplier = invoice.suppliers as { name: string; economic_id: number | null } | null
+  const account = invoice.accounts as { code: string; name: string } | null
+
+  // Kræver leverandør med economic_id og en finanskonto
+  if (!supplier?.economic_id || !account?.code) return
+
+  const accountNumber = parseInt(account.code, 10)
+  if (isNaN(accountNumber)) return
+
+  // Hent betalingsbetingelse (brug første tilgængelige)
+  const paymentTermsNumber = await fetchFirstPaymentTerm(appSecret, agreementGrant) ?? 1
+
+  const date = invoice.invoice_date ?? new Date().toISOString().slice(0, 10)
+  const netAmount = invoice.amount_excl_vat ?? (invoice.amount_incl_vat ?? 0) / 1.25
+  const vatAmount = invoice.vat_amount ?? (invoice.amount_incl_vat ?? 0) - netAmount
+  const grossAmount = invoice.amount_incl_vat ?? netAmount + vatAmount
+
+  const { bookedInvoiceNumber } = await bookSupplierInvoice({
+    appSecret,
+    agreementGrant,
+    supplierNumber: supplier.economic_id,
+    supplierInvoiceNumber: invoice.invoice_number,
+    date,
+    currency: invoice.currency ?? 'DKK',
+    grossAmount,
+    netAmount,
+    vatAmount,
+    paymentTermsNumber,
+    accountNumber,
+    description: `Faktura ${invoice.invoice_number ?? invoiceId} – ${supplier.name}`,
+  })
+
+  // Gem bogføringsnummer på fakturaen
+  await supabase
+    .from('invoices')
+    .update({
+      economic_booked_number: bookedInvoiceNumber,
+      economic_booked_at: new Date().toISOString(),
+    })
+    .eq('id', invoiceId)
+
+  await supabase.from('audit_log').insert({
+    organization_id: orgId,
+    user_id: null,
+    action: 'book_in_economic',
+    resource_type: 'invoices',
+    resource_id: invoiceId,
+    new_data: { economic_booked_number: bookedInvoiceNumber },
+  })
 }
 
 export async function rejectInvoice(invoiceId: string, reason: string) {

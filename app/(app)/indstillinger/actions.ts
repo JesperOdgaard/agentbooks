@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { encryptKey, decryptKey } from '@/lib/crypto'
+import { fetchAllAccounts, fetchAllSuppliers } from '@/lib/economic'
 
 // ── Organisation ───────────────────────────────────────────────────────────────
 
@@ -258,17 +259,6 @@ export async function testIntegration(
 
 // ── Kontoplan sync fra e-conomic ───────────────────────────────────────────────
 
-type EconomicAccount = {
-  accountNumber: number
-  name: string
-  accountType: string
-}
-
-type EconomicAccountsResponse = {
-  collection: EconomicAccount[]
-  pagination?: { nextPage?: string }
-}
-
 function mapAccountType(economicType: string): string {
   switch (economicType) {
     case 'profitAndLoss': return 'drifts'
@@ -282,30 +272,6 @@ function mapAccountType(economicType: string): string {
     case 'sumIntervalsOnly': return 'sum'
     default: return economicType
   }
-}
-
-async function fetchAllEconomicAccounts(
-  appSecret: string,
-  agreementGrant: string
-): Promise<EconomicAccount[]> {
-  const accounts: EconomicAccount[] = []
-  let url: string | undefined = 'https://restapi.e-conomic.com/accounts?pageSize=1000'
-
-  while (url) {
-    const res = await fetch(url, {
-      headers: {
-        'X-AppSecretToken': appSecret,
-        'X-AgreementGrantToken': agreementGrant,
-        'Content-Type': 'application/json',
-      },
-    })
-    if (!res.ok) throw new Error(`e-conomic returnerede fejl ${res.status}`)
-    const json = await res.json() as EconomicAccountsResponse
-    accounts.push(...json.collection)
-    url = json.pagination?.nextPage
-  }
-
-  return accounts
 }
 
 export async function syncKontoplanFromEconomic(): Promise<{
@@ -342,7 +308,7 @@ export async function syncKontoplanFromEconomic(): Promise<{
     const agreementGrant = integration.api_key_2 ? decryptKey(integration.api_key_2) : ''
     if (!agreementGrant) return { error: 'Agreement Grant Token mangler' }
 
-    const economicAccounts = await fetchAllEconomicAccounts(appSecret, agreementGrant)
+    const economicAccounts = await fetchAllAccounts(appSecret, agreementGrant)
 
     // Upsert into accounts table (match on code + organization_id)
     const rows = economicAccounts.map((a) => ({
@@ -380,6 +346,125 @@ export async function syncKontoplanFromEconomic(): Promise<{
 
     revalidatePath('/indstillinger')
     return { success: true, count: rows.length }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Ukendt fejl' }
+  }
+}
+
+// ── Leverandør sync fra e-conomic ──────────────────────────────────────────────
+
+export async function syncLeverandoererFromEconomic(): Promise<{
+  success?: boolean
+  created?: number
+  updated?: number
+  error?: string
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Ikke logget ind' }
+
+  const { data: member } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!member) return { error: 'Ingen organisation fundet' }
+  if (member.role !== 'admin') return { error: 'Kun administratorer kan synkronisere leverandører' }
+
+  const { data: integration } = await supabase
+    .from('integrations')
+    .select('api_key, api_key_2, is_active')
+    .eq('organization_id', member.organization_id)
+    .eq('type', 'economic')
+    .maybeSingle()
+
+  if (!integration?.is_active || !integration.api_key) {
+    return { error: 'e-conomic integration er ikke tilsluttet' }
+  }
+
+  try {
+    const appSecret = decryptKey(integration.api_key)
+    const agreementGrant = integration.api_key_2 ? decryptKey(integration.api_key_2) : ''
+    if (!agreementGrant) return { error: 'Agreement Grant Token mangler' }
+
+    const economicSuppliers = await fetchAllSuppliers(appSecret, agreementGrant)
+
+    // Hent eksisterende leverandører for org
+    const { data: existing } = await supabase
+      .from('suppliers')
+      .select('id, economic_id, cvr, name')
+      .eq('organization_id', member.organization_id)
+
+    const byEconomicId = new Map<number, string>()
+    const byCvr = new Map<string, string>()
+    const byName = new Map<string, string>()
+
+    for (const s of existing ?? []) {
+      if (s.economic_id) byEconomicId.set(s.economic_id, s.id)
+      if (s.cvr) byCvr.set(s.cvr, s.id)
+      byName.set(s.name.toLowerCase(), s.id)
+    }
+
+    let created = 0
+    let updated = 0
+
+    for (const es of economicSuppliers) {
+      const cvr = es.vatNumber?.replace(/\D/g, '') || null
+      const row = {
+        name: es.name,
+        email: es.email ?? null,
+        address: es.address ?? null,
+        city: es.city ?? null,
+        postal_code: es.zip ?? null,
+        country: es.country ?? null,
+        phone: es.phone ?? null,
+        cvr: cvr && cvr.length === 8 ? cvr : null,
+        economic_id: es.supplierNumber,
+        bank_account_no: es.bankAccount?.bankAccountNumber ?? null,
+        bank_reg_no: es.bankAccount?.bankCode ?? null,
+        payment_terms: es.paymentTerms?.paymentTermsNumber ?? null,
+        status: 'active' as const,
+        updated_at: new Date().toISOString(),
+      }
+
+      // Match: economic_id > CVR > navn
+      const existingId =
+        byEconomicId.get(es.supplierNumber) ??
+        (cvr ? byCvr.get(cvr) : undefined) ??
+        byName.get(es.name.toLowerCase())
+
+      if (existingId) {
+        await supabase.from('suppliers').update(row).eq('id', existingId)
+        updated++
+      } else {
+        await supabase.from('suppliers').insert({
+          ...row,
+          organization_id: member.organization_id,
+          created_by: user.id,
+        })
+        created++
+      }
+    }
+
+    await supabase.from('audit_log').insert({
+      organization_id: member.organization_id,
+      user_id: user.id,
+      action: 'sync_leverandoerer',
+      resource_type: 'suppliers',
+      resource_id: member.organization_id,
+      new_data: { source: 'economic', created, updated },
+    })
+
+    await supabase
+      .from('integrations')
+      .update({ last_sync_at: new Date().toISOString() })
+      .eq('organization_id', member.organization_id)
+      .eq('type', 'economic')
+
+    revalidatePath('/leverandoerer')
+    revalidatePath('/indstillinger')
+    return { success: true, created, updated }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Ukendt fejl' }
   }

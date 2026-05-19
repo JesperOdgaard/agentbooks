@@ -169,6 +169,11 @@ export default async function FakturaDetailPage({
               {invoice.approved_at && ` · ${new Date(invoice.approved_at).toLocaleDateString('da-DK')}`}
             </span>
           )}
+          {(invoice as Record<string, unknown>).economic_booked_number && (
+            <span className="ml-auto text-xs font-medium text-blue-700 bg-blue-50 ring-1 ring-blue-200 px-2 py-0.5 rounded-full">
+              e-conomic #{String((invoice as Record<string, unknown>).economic_booked_number)}
+            </span>
+          )}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SettingsTabs } from './settings-tabs'
 import { ErpIntegrations } from './erp-integrations'
 import { KontoplanSection } from './kontoplan-section'
+import { LeverandoerSyncSection } from './leverandoer-sync-section'
 
 const planLabel: Record<string, string> = {
   starter:      'Starter',
@@ -71,6 +72,14 @@ export default async function IndstillingerPage({
     : { data: [] }
 
   const accounts = accountsRaw ?? []
+
+  // Leverandørantal
+  const { count: supplierCount } = member?.organization_id
+    ? await supabase
+        .from('suppliers')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', member.organization_id)
+    : { count: 0 }
 
   const plan = (org as { plan?: string } | null)?.plan
     ?? (org as { subscription_plan?: string } | null)?.subscription_plan
@@ -159,6 +168,11 @@ export default async function IndstillingerPage({
       {/* FINANS */}
       {activeTab === 'finans' && (
         <div className="space-y-6">
+          <LeverandoerSyncSection
+            hasEconomicIntegration={hasEconomicIntegration}
+            isAdmin={isAdmin}
+            supplierCount={supplierCount ?? 0}
+          />
           <KontoplanSection
             accounts={accounts}
             hasEconomicIntegration={hasEconomicIntegration}
