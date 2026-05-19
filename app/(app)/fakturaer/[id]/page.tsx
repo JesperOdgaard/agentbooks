@@ -8,6 +8,7 @@ import { CreateSupplierModal } from './create-supplier-modal'
 import { KonteringSuggestions } from './kontering-suggestions'
 import { InvoiceEditForm } from './invoice-edit-form'
 import { RegisterPaymentModal } from './register-payment-modal'
+import { InvoiceQueueWidget } from './invoice-queue-widget'
 
 const statusLabel: Record<string, string> = {
   pending: 'Afventer',
@@ -114,6 +115,27 @@ export default async function FakturaDetailPage({
 
   const konteringApplied = !!invoice.account_id && invoice.account_id === aiData?.suggested_account_id
   const isOverdue = invoice.due_date && new Date(invoice.due_date) < new Date() && !['paid', 'cancelled'].includes(invoice.status)
+
+  // Hent ventende fakturaer til kø-widget (pending + awaiting_approval)
+  const { data: queueRaw } = orgId
+    ? await supabase
+        .from('invoices')
+        .select('id, invoice_number, amount_incl_vat, currency, status, due_date, suppliers(name)')
+        .eq('organization_id', orgId)
+        .in('status', ['pending', 'awaiting_approval'])
+        .order('created_at', { ascending: true })
+        .limit(20)
+    : { data: [] }
+
+  const queueInvoices = (queueRaw ?? []).map((inv) => ({
+    id: inv.id,
+    invoice_number: inv.invoice_number,
+    supplier_name: (inv.suppliers as { name: string } | null)?.name ?? null,
+    amount_incl_vat: inv.amount_incl_vat,
+    currency: inv.currency,
+    status: inv.status,
+    due_date: inv.due_date,
+  }))
 
   return (
     <div className="px-6 py-5 max-w-5xl">
@@ -256,6 +278,9 @@ export default async function FakturaDetailPage({
               <InvoiceActions invoiceId={id} status={invoice.status} aiScanned={invoice.ai_scanned ?? false} />
             </div>
           </div>
+
+          {/* Faktura-kø */}
+          <InvoiceQueueWidget currentId={id} invoices={queueInvoices} />
 
           {/* Tildelt godkender */}
           {invoice.status === 'awaiting_approval' && assignedApproverName && (

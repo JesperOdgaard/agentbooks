@@ -257,12 +257,13 @@ Regler:
     return { error: `Kunne ikke parse AI-svar: ${rawText.slice(0, 200)}` }
   }
 
-  // Prøv at matche leverandør på CVR eller navn
+  // Prøv at matche leverandør på CVR eller navn — opret IKKE automatisk
   let supplierId: string | null = null
   if (extracted.supplier_cvr || extracted.supplier_name) {
     const { data: suppliers } = await supabase
       .from('suppliers')
       .select('id, name, cvr')
+      .eq('organization_id', member.organization_id)
 
     if (suppliers && suppliers.length > 0) {
       const cvrMatch = extracted.supplier_cvr
@@ -277,24 +278,8 @@ Regler:
 
       supplierId = cvrMatch?.id ?? nameMatch?.id ?? null
     }
-
-    // Opret ny leverandør hvis ingen match
-    if (!supplierId && extracted.supplier_name) {
-      const { data: newSupplier } = await supabase
-        .from('suppliers')
-        .insert({
-          organization_id: member.organization_id,
-          name: extracted.supplier_name,
-          cvr: extracted.supplier_cvr ?? null,
-          email: extracted.supplier_email ?? null,
-          address: extracted.supplier_address ?? null,
-          status: 'active',
-        })
-        .select('id')
-        .single()
-
-      supplierId = newSupplier?.id ?? null
-    }
+    // Hvis ingen match: supplierId forbliver null.
+    // Bruger bekræfter og opretter via UI (Ny leverandør-kort)
   }
 
   // Hjælpefunktioner

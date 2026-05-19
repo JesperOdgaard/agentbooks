@@ -31,9 +31,10 @@ interface Props {
 
 const CURRENCIES = ['DKK', 'EUR', 'USD', 'SEK', 'NOK', 'GBP']
 
-function fmt(v: number | null) {
+function fmt(v: number | null, currency = 'DKK') {
   if (v == null) return '—'
-  return new Intl.NumberFormat('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + ' kr.'
+  const num = new Intl.NumberFormat('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)
+  return currency === 'DKK' ? `${num} kr.` : `${num} ${currency}`
 }
 function fmtDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString('da-DK') : '—'
@@ -116,15 +117,15 @@ export function InvoiceEditForm({
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-gray-50 rounded-lg px-3 py-2.5 text-center">
           <p className="text-[10px] text-gray-400 mb-0.5">Ekskl. moms</p>
-          <p className="text-sm font-semibold text-gray-800">{fmt(amountExclVat)}</p>
+          <p className="text-sm font-semibold text-gray-800">{fmt(amountExclVat, currency ?? 'DKK')}</p>
         </div>
         <div className="bg-gray-50 rounded-lg px-3 py-2.5 text-center">
           <p className="text-[10px] text-gray-400 mb-0.5">Moms</p>
-          <p className="text-sm font-semibold text-gray-800">{fmt(vatAmount)}</p>
+          <p className="text-sm font-semibold text-gray-800">{fmt(vatAmount, currency ?? 'DKK')}</p>
         </div>
         <div className="bg-emerald-50 ring-1 ring-emerald-100 rounded-lg px-3 py-2.5 text-center">
           <p className="text-[10px] text-emerald-600 mb-0.5">Total</p>
-          <p className="text-sm font-bold text-emerald-700">{fmt(amountInclVat)}</p>
+          <p className="text-sm font-bold text-emerald-700">{fmt(amountInclVat, currency ?? 'DKK')}</p>
         </div>
       </div>
 
@@ -170,9 +171,9 @@ export function InvoiceEditForm({
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Beløb</p>
         <div className="grid grid-cols-3 gap-2">
-          <InputField label="Ekskl. moms" name="amount_excl_vat" type="number" defaultValue={amountExclVat ?? ''} suffix="kr." />
-          <InputField label="Momsbeløb"   name="vat_amount"      type="number" defaultValue={vatAmount ?? ''}    suffix="kr." />
-          <InputField label="Inkl. moms"  name="amount_incl_vat" type="number" defaultValue={amountInclVat ?? ''} suffix="kr." />
+          <InputField label="Ekskl. moms" name="amount_excl_vat" type="number" defaultValue={amountExclVat ?? ''} suffix={currency ?? 'DKK'} />
+          <InputField label="Momsbeløb"   name="vat_amount"      type="number" defaultValue={vatAmount ?? ''}    suffix={currency ?? 'DKK'} />
+          <InputField label="Inkl. moms"  name="amount_incl_vat" type="number" defaultValue={amountInclVat ?? ''} suffix={currency ?? 'DKK'} />
         </div>
         <div className="mt-2 w-28">
           <label className="block text-[11px] text-gray-400 mb-1">Valuta</label>
