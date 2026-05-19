@@ -595,3 +595,49 @@ export async function registerPayment(
   revalidatePath('/betalinger')
   return { success: true }
 }
+
+const DELETABLE_STATUSES = ['pending', 'rejected', 'cancelled']
+
+export async function deleteInvoice(invoiceId: string): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Ikke logget ind' }
+
+  const orgId = await getOrgId(supabase, user.id)
+  if (!orgId) return { error: 'Ingen organisation' }
+
+  // Hent faktura og tjek status + ejerskab
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select('id, status, file_url')
+    .eq('id', invoiceId)
+    .single()
+
+  if (!invoice) return { error: 'Faktura ikke fundet' }
+  if (!DELETABLE_STATUSES.includes(invoice.status)) {
+    return { error: 'Kun fakturaer med status afventer, afvist eller annulleret kan slettes' }
+  }
+
+  // Slet fil fra storage hvis den findes
+  if (invoice.file_url) {
+    await supabase.storage.from('invoices').remove([invoice.file_url])
+  }
+
+  // Slet linjelinier
+  await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
+
+  // Slet faktura
+  const { error: delError } = await supabase.from('invoices').delete().eq('id', invoiceId)
+  if (delError) return { error: `Kunne ikke slette faktura: ${delError.message}` }
+
+  await supabase.from('audit_log').insert({
+    organization_id: orgId,
+    user_id: user.id,
+    action: 'delete_invoice',
+    resource_type: 'invoices',
+    resource_id: invoiceId,
+  })
+
+  revalidatePath('/fakturaer')
+  return { success: true }
+}

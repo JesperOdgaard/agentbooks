@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { approveInvoice, rejectInvoice, submitForApproval } from '../actions'
+import { useRouter } from 'next/navigation'
+import { approveInvoice, rejectInvoice, submitForApproval, deleteInvoice } from '../actions'
 import { scanInvoiceWithAI } from '../scan-action'
-import { CheckCircle, XCircle, Send, Sparkles, Loader2, X } from 'lucide-react'
+import { CheckCircle, XCircle, Send, Sparkles, Loader2, X, Trash2 } from 'lucide-react'
 
 interface InvoiceActionsProps {
   invoiceId: string
@@ -11,13 +12,18 @@ interface InvoiceActionsProps {
   aiScanned: boolean
 }
 
+const DELETABLE_STATUSES = ['pending', 'rejected', 'cancelled']
+
 export function InvoiceActions({ invoiceId, status, aiScanned }: InvoiceActionsProps) {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanDone, setScanDone] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function handleApprove() {
     setLoading(true); setError(null)
@@ -48,6 +54,20 @@ export function InvoiceActions({ invoiceId, status, aiScanned }: InvoiceActionsP
     else setScanDone(true)
     setScanning(false)
   }
+
+  async function handleDelete() {
+    setDeleting(true); setError(null)
+    const r = await deleteInvoice(invoiceId)
+    if (r?.error) {
+      setError(r.error)
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    } else {
+      router.push('/fakturaer')
+    }
+  }
+
+  const canDelete = DELETABLE_STATUSES.includes(status)
 
   return (
     <div className="space-y-1.5">
@@ -91,6 +111,32 @@ export function InvoiceActions({ invoiceId, status, aiScanned }: InvoiceActionsP
               {scanDone || aiScanned ? 'Scan igen med AI' : 'Scan med AI'}</>
         }
       </button>
+
+      {/* Slet-knap — kun for ikke-godkendte */}
+      {canDelete && !showDeleteConfirm && (
+        <button onClick={() => setShowDeleteConfirm(true)} disabled={loading || deleting}
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-red-100 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-40 text-xs font-medium rounded-lg transition-colors">
+          <Trash2 size={12} /> Slet faktura
+        </button>
+      )}
+
+      {/* Bekræftelsesdialog */}
+      {showDeleteConfirm && (
+        <div className="mt-1 pt-3 border-t border-red-100 space-y-2">
+          <p className="text-xs text-center text-gray-600">Slet denne faktura permanent?</p>
+          <div className="flex gap-2">
+            <button onClick={() => setShowDeleteConfirm(false)} disabled={deleting}
+              className="flex-1 py-1.5 px-3 border border-gray-200 text-gray-500 hover:bg-gray-50 text-xs font-medium rounded-lg transition-colors">
+              Annuller
+            </button>
+            <button onClick={handleDelete} disabled={deleting}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors">
+              {deleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              Slet
+            </button>
+          </div>
+        </div>
+      )}
 
       {showRejectForm && (
         <div className="mt-2 pt-3 border-t border-gray-100 space-y-2">
