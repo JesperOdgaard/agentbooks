@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Building2, Calendar, Package } from 'lucide-react'
-import { POActions, StatusFlowBar } from './po-actions'
+import { POActions, StatusFlowBar, POPdfButton } from './po-actions'
 
 function formatDKK(amount: number | null, currency = 'DKK') {
   if (amount == null) return '—'
@@ -93,6 +93,7 @@ export default async function IndkoebsOrdrePage({
             <p className="text-gray-500 text-sm mt-1">{po.title}</p>
           )}
         </div>
+        <POPdfButton poId={po.id} />
       </div>
 
       {/* Statusflow */}

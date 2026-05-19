@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { FileDown } from 'lucide-react'
 import { updatePurchaseOrderStatus, deletePurchaseOrder } from '../actions'
 
 interface POActionsProps {
@@ -111,6 +112,21 @@ export function POActions({ poId, status }: POActionsProps) {
         )}
       </div>
     </div>
+  )
+}
+
+export function POPdfButton({ poId }: { poId: string }) {
+  function handlePrint() {
+    window.open(`/indkoebsordrer/${poId}/print`, '_blank')
+  }
+  return (
+    <button
+      onClick={handlePrint}
+      className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+    >
+      <FileDown size={14} />
+      Hent PDF
+    </button>
   )
 }
 
